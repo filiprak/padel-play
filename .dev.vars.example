@@ -1,0 +1,3 @@
+# Copy to .dev.vars for local wrangler pages dev
+# MY_KV binding etc is configured in wrangler.toml
+# MY_VAR="hello local"
