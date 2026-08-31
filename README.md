@@ -6,7 +6,8 @@ SPA boilerplate with **Vite + Vue 3 + TypeScript** (frontend) + **Cloudflare Pag
 
 - **Frontend**: Vite 8, Vue 3.5, Vue Router 5, TypeScript 5.9, SPA with history mode
 - **API**: Cloudflare Pages Functions (`functions/api/*.ts`) — file-based routing (`/api/health` → `functions/api/health.ts`, `/api/courts` → `functions/api/courts.ts`)
-- **DB**: Turso (libSQL, SQLite at edge) via `@libsql/client/web` + optional `drizzle-orm` (`db/schema.ts`)
+- **DB**: Turso (libSQL, SQLite at edge) via `@libsql/client/web` + `drizzle-orm` (`db/schema.ts:1`, `functions/lib/drizzle.ts:1`)
+- **REST**: Reusable `RestEndpoint` class (`functions/lib/rest.ts:33`) — extend to implement endpoints
 - **Deploy**: Cloudflare Pages (static `dist/` + Functions)
 - **Package Manager**: pnpm 11.24.0 (enforced via `devEngines` + `packageManager`)
 
@@ -15,15 +16,19 @@ SPA boilerplate with **Vite + Vue 3 + TypeScript** (frontend) + **Cloudflare Pag
 ```
 .
 ├── db/
-│   ├── schema.sql        # SQL schema (courts)
+│   ├── schema.sql        # SQL schema (courts + users)
 │   └── schema.ts         # Drizzle typed schema (optional)
 ├── drizzle.config.ts     # drizzle-kit config (turso)
 ├── functions/
 │   ├── lib/turso.ts      # getTursoClient(env) helpers
+│   ├── lib/rest.ts       # RestEndpoint base class
+│   ├── lib/drizzle.ts    # getDb(env) → drizzle-orm with db/schema
 │   └── api/
-│       ├── health.ts     # GET /api/health
-│       ├── courts.ts     # GET/POST /api/courts
-│       └── courts/[id].ts # GET/PATCH/DELETE /api/courts/:id
+│       ├── health.ts     # GET /api/health (simple)
+│       ├── courts.ts     # GET/POST /api/courts (RestEndpoint + drizzle-orm)
+│       ├── courts/[id].ts # GET/PATCH/DELETE /api/courts/:id (RestEndpoint + drizzle-orm)
+│       ├── users.ts      # GET/POST /api/users (RestEndpoint + drizzle-orm)
+│       └── users/[id].ts # GET/PATCH/DELETE /api/users/:id (RestEndpoint + drizzle-orm)
 ├── public/
 │   ├── favicon.svg
 │   ├── _redirects        # SPA fallback: /* -> /index.html 200
@@ -80,13 +85,63 @@ pnpm db:migrate       # drizzle-kit migrate
 
 ## Cloudflare Functions
 
-File-based routing under `functions/`:
+File-based routing under `functions/` (all except `health` extend `RestEndpoint`):
 
-- `functions/api/health.ts` → `GET /api/health`
-- `functions/api/courts.ts` → `GET /api/courts?limit=&offset=`, `POST /api/courts`
-- `functions/api/courts/[id].ts` → `GET/PATCH/DELETE /api/courts/:id`
+- `functions/api/health.ts` → `GET /api/health` (plain handler)
+- `functions/api/courts.ts` → `GET /api/courts?limit=&offset=`, `POST /api/courts` (RestEndpoint + drizzle-orm)
+- `functions/api/courts/[id].ts` → `GET/PATCH/DELETE /api/courts/:id` (RestEndpoint + drizzle-orm)
+- `functions/api/users.ts` → `GET /api/users?q=&limit=&offset=` + `POST /api/users` (RestEndpoint + drizzle-orm)
+- `functions/api/users/[id].ts` → `GET/PATCH/PUT/DELETE /api/users/:id` (RestEndpoint + drizzle-orm)
 
-Turso helper: `functions/lib/turso.ts:8` `getTursoClient(env)` uses `@libsql/client/web` (fetch-based for workerd). Env required: `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`.
+Turso helper: `functions/lib/turso.ts:13` `getTursoClient(env)` uses `@libsql/client/web` (fetch-based for workerd). Env required: `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`. Wrapped as `getDb(env)` in `functions/lib/drizzle.ts:1` → `drizzle(client, {schema})`.
+
+### REST Framework (`functions/lib/rest.ts:33`)
+
+Reusable base class to avoid boilerplate:
+
+```ts
+import { RestEndpoint, type RestContext } from '../lib/rest'
+import { users } from '../../db/schema'
+import { asc } from 'drizzle-orm'
+
+class UsersEndpoint extends RestEndpoint {
+  async get(ctx: RestContext) {
+    const { limit, offset } = this.pagination(ctx)
+    const db = this.db(ctx)
+    const rows = await db.select().from(users).orderBy(asc(users.id)).limit(limit).offset(offset)
+    return this.json({ users: rows })
+  }
+  async post(ctx: RestContext) {
+    const body = await this.parseJson<{ name: string; email: string }>(ctx)
+    const err = this.requireFields(body, ['name','email'])
+    if (err) return this.error(err, 400)
+    const [user] = await this.db(ctx).insert(users).values(body as never).returning()
+    return this.json({ user }, { status: 201 })
+  }
+}
+const ep = new UsersEndpoint()
+export const onRequest: PagesFunction<CloudflareEnv> = (ctx) => ep.handle(ctx)
+```
+
+Helpers: `this.json`/`this.error`, `this.client(ctx)` (`@libsql/client/web`), `this.db(ctx)` (`drizzle-orm/libsql/web` typed with `db/schema.ts`), `this.parseJson`, `this.query`/`this.param`/`this.numParam`, `this.pagination`, `this.requireFields`, `before()` hook, `endpoint()` factory.
+
+### Drizzle ORM (`db/schema.ts:1`, `functions/lib/drizzle.ts:1`)
+
+Schemas already define `courts` + `users` (`sqliteTable` with `drizzle-orm/sqlite-core`). `getDb(env)` wraps `getTursoClient` → `drizzle(client, {schema})`:
+
+```ts
+import { getDb } from './drizzle'
+import { users, courts } from '../../db/schema'
+import { eq, like, or, asc, count } from 'drizzle-orm'
+
+const db = getDb(env)
+await db.select().from(users).where(eq(users.id, 1))
+await db.select().from(users).where(or(like(users.name, '%ada%'), like(users.email, '%ada%')))
+await db.insert(users).values({ name: 'Ada', email: 'ada@example.com', role: 'player' }).returning()
+await db.update(users).set({ name: 'Ada L.' }).where(eq(users.id, 1)).returning()
+await db.delete(users).where(eq(users.id, 1)).returning()
+await db.select({ total: count() }).from(users)
+```
 
 ## Turso DB
 
@@ -110,9 +165,12 @@ pnpm build && pnpm pages:dev
 curl http://localhost:8788/api/health
 curl http://localhost:8788/api/courts
 curl -X POST http://localhost:8788/api/courts -H 'Content-Type: application/json' -d '{"name":"Test Court"}'
+curl http://localhost:8788/api/users
+curl -X POST http://localhost:8788/api/users -H 'Content-Type: application/json' -d '{"name":"Ada","email":"ada@example.com"}'
+curl http://localhost:8788/api/users/1
 ```
 
-Schema: `db/schema.sql:1` (`courts` with index). Typed version via `db/schema.ts:1` for drizzle. Production: set `TURSO_DATABASE_URL` + `TURSO_AUTH_TOKEN` in Cloudflare Pages -> Settings -> Variables/Secrets.
+Schema: `db/schema.sql:1` (`courts` + `users` with indexes). Typed version via `db/schema.ts:1` for drizzle. Production: set `TURSO_DATABASE_URL` + `TURSO_AUTH_TOKEN` in Cloudflare Pages -> Settings -> Variables/Secrets.
 
 Frontend demo: `src/views/HomeView.vue:1` uses `src/composables/useCourts.ts:1` and `src/lib/api.ts:1` to list/create courts and check `/api/health`.
 

@@ -1,79 +1,59 @@
-import { getTursoClient, json, errorJson } from '../lib/turso'
+import { RestEndpoint, type RestContext } from '../lib/rest'
+import { courts } from '../../db/schema'
+import { asc, count } from 'drizzle-orm'
 
-type CourtRow = {
-  id: number
-  name: string
-  location: string | null
-  surface: string
-  is_indoor: number
-  hourly_price_cents: number
-  created_at: string
-}
+const ALLOWED_SURFACES = ['artificial_grass', 'clay', 'concrete', 'grass'] as const
 
-// GET /api/courts — list courts
-export const onRequestGet: PagesFunction<CloudflareEnv> = async ({ env, request }) => {
-  try {
-    const client = getTursoClient(env as never)
-    const url = new URL(request.url)
-    const limit = Math.min(Number(url.searchParams.get('limit') ?? '50'), 100)
-    const offset = Math.max(Number(url.searchParams.get('offset') ?? '0'), 0)
+class CourtsEndpoint extends RestEndpoint {
+  // GET /api/courts?limit=50&offset=0
+  async get(ctx: RestContext): Promise<Response> {
+    const { limit, offset } = this.pagination(ctx)
+    const db = this.db(ctx)
 
-    const rs = await client.execute({
-      sql: 'SELECT * FROM courts ORDER BY id ASC LIMIT ? OFFSET ?',
-      args: [limit, offset],
-    })
+    const rows = await db.select().from(courts).orderBy(asc(courts.id)).limit(limit).offset(offset)
+    const [cntRow] = await db.select({ total: count() }).from(courts)
 
-    const courts = rs.rows as unknown as CourtRow[]
-    const countRs = await client.execute('SELECT COUNT(*) as total FROM courts')
-
-    return json({
-      courts,
-      total: Number((countRs.rows[0] as unknown as { total: number }).total),
-      limit,
-      offset,
-    })
-  } catch (e) {
-    return errorJson('Failed to fetch courts', 500, e instanceof Error ? e.message : String(e))
+    return this.json({ courts: rows, total: Number(cntRow?.total ?? 0), limit, offset })
   }
-}
 
-// POST /api/courts — create court
-// Body: { name: string, location?: string, surface?: string, is_indoor?: boolean, hourly_price_cents?: number }
-export const onRequestPost: PagesFunction<CloudflareEnv> = async ({ env, request }) => {
-  try {
-    const client = getTursoClient(env as never)
-    const body = (await request.json().catch(() => null)) as
-      | {
-          name?: string
-          location?: string
-          surface?: string
-          is_indoor?: boolean | number
-          hourly_price_cents?: number
-        }
-      | null
+  // POST /api/courts { name, location?, surface?, is_indoor?, hourly_price_cents? }
+  async post(ctx: RestContext): Promise<Response> {
+    const body = await this.parseJson<{
+      name?: string
+      location?: string
+      surface?: string
+      is_indoor?: boolean | number
+      hourly_price_cents?: number
+    }>(ctx)
 
     if (!body?.name || typeof body.name !== 'string' || body.name.trim().length === 0) {
-      return errorJson('`name` is required', 400)
+      return this.error('`name` is required', 400)
     }
 
     const name = body.name.trim()
     const location = body.location?.trim() || null
-    const surface = body.surface ?? 'artificial_grass'
-    const allowed = ['artificial_grass', 'clay', 'concrete', 'grass']
-    if (!allowed.includes(surface)) {
-      return errorJson(`surface must be one of: ${allowed.join(', ')}`, 400)
+    const surface = (body.surface ?? 'artificial_grass') as (typeof ALLOWED_SURFACES)[number]
+    if (!ALLOWED_SURFACES.includes(surface)) {
+      return this.error(`surface must be one of: ${ALLOWED_SURFACES.join(', ')}`, 400)
     }
-    const isIndoor = body.is_indoor ? 1 : 0
+    const isIndoor = Boolean(body.is_indoor)
     const price = body.hourly_price_cents ?? 3000
 
-    const rs = await client.execute({
-      sql: 'INSERT INTO courts (name, location, surface, is_indoor, hourly_price_cents) VALUES (?, ?, ?, ?, ?) RETURNING *',
-      args: [name, location, surface, isIndoor, price],
-    })
+    const db = this.db(ctx)
+    const [court] = await db
+      .insert(courts)
+      .values({
+        name,
+        location,
+        surface,
+        isIndoor,
+        hourlyPriceCents: price,
+      })
+      .returning()
 
-    const court = rs.rows[0] as unknown as CourtRow
-    return json({ court }, { status: 201 })
-  } catch (e) {
-    return errorJson('Failed to create court', 500, e instanceof Error ? e.message : String(e))
+    return this.json({ court }, { status: 201 })
   }
 }
+
+const ep = new CourtsEndpoint()
+export const onRequest: PagesFunction<CloudflareEnv> = (ctx) => ep.handle(ctx)

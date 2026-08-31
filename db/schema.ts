@@ -18,5 +18,16 @@ export const courts = sqliteTable('courts', {
   createdAt: text('created_at').notNull().default("strftime('%Y-%m-%dT%H:%M:%SZ','now')"),
 })
 
+export const users = sqliteTable('users', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull(),
+  email: text('email').notNull().unique(),
+  role: text('role', { enum: ['player', 'admin', 'coach'] }).notNull().default('player'),
+  createdAt: text('created_at').notNull().default("strftime('%Y-%m-%dT%H:%M:%SZ','now')"),
+  updatedAt: text('updated_at').notNull().default("strftime('%Y-%m-%dT%H:%M:%SZ','now')"),
+})
+
 export type Court = typeof courts.$inferSelect
 export type NewCourt = typeof courts.$inferInsert
+export type User = typeof users.$inferSelect
+export type NewUser = typeof users.$inferInsert

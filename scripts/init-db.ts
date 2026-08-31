@@ -52,6 +52,27 @@ async function main() {
   console.log(`Done. ${courts.rows.length} court(s) in DB:`)
   for (const r of courts.rows) console.log(' -', r)
 
+  // Seed sample users if empty
+  const userCount = await client.execute('SELECT COUNT(*) as cnt FROM users')
+  const uCnt = Number(userCount.rows[0]?.cnt ?? 0)
+  if (uCnt === 0) {
+    console.log('Seeding sample users...')
+    await client.batch(
+      [
+        "INSERT INTO users (name, email, role) VALUES ('Ada Lovelace', 'ada@example.com', 'player')",
+        "INSERT INTO users (name, email, role) VALUES ('Admin', 'admin@padel-play.com', 'admin')",
+      ],
+      'write',
+    )
+    const users = await client.execute('SELECT id, name, email, role FROM users LIMIT 10')
+    console.log(`${users.rows.length} user(s) seeded:`)
+    for (const r of users.rows) console.log(' -', r)
+  } else {
+    const users = await client.execute('SELECT id, name, email, role FROM users LIMIT 10')
+    console.log(`${users.rows.length} user(s) in DB:`)
+    for (const r of users.rows) console.log(' -', r)
+  }
+
   client.close()
 }
 

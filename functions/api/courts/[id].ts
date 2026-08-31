@@ -1,70 +1,79 @@
-import { getTursoClient, json, errorJson } from '../../lib/turso'
+import { RestEndpoint, type RestContext } from '../../lib/rest'
+import { courts } from '../../../db/schema'
+import { eq } from 'drizzle-orm'
 
-// GET /api/courts/:id
-export const onRequestGet: PagesFunction<CloudflareEnv> = async ({ env, params }) => {
-  try {
-    const id = Number(params.id)
-    if (!Number.isInteger(id)) return errorJson('Invalid id', 400)
-    const client = getTursoClient(env as never)
-    const rs = await client.execute({ sql: 'SELECT * FROM courts WHERE id = ?', args: [id] })
-    if (rs.rows.length === 0) return errorJson('Court not found', 404)
-    return json({ court: rs.rows[0] })
-  } catch (e) {
-    return errorJson('Failed to fetch court', 500, e instanceof Error ? e.message : String(e))
+class CourtByIdEndpoint extends RestEndpoint {
+  private getId(ctx: RestContext): number | null {
+    const raw = this.param(ctx, 'id')
+    const n = Number(raw)
+    return Number.isInteger(n) && n > 0 ? n : null
   }
-}
 
-// DELETE /api/courts/:id
-export const onRequestDelete: PagesFunction<CloudflareEnv> = async ({ env, params }) => {
-  try {
-    const id = Number(params.id)
-    if (!Number.isInteger(id)) return errorJson('Invalid id', 400)
-    const client = getTursoClient(env as never)
-    const rs = await client.execute({ sql: 'DELETE FROM courts WHERE id = ? RETURNING id', args: [id] })
-    if (rs.rows.length === 0) return errorJson('Court not found', 404)
-    return json({ deleted: true, id })
-  } catch (e) {
-    return errorJson('Failed to delete court', 500, e instanceof Error ? e.message : String(e))
+  // GET /api/courts/:id
+  async get(ctx: RestContext): Promise<Response> {
+    const id = this.getId(ctx)
+    if (id === null) return this.error('Invalid id', 400)
+    const db = this.db(ctx)
+    const [court] = await db.select().from(courts).where(eq(courts.id, id)).limit(1)
+    if (!court) return this.error('Court not found', 404)
+    return this.json({ court })
   }
-}
 
-// PATCH /api/courts/:id — partial update
-export const onRequestPatch: PagesFunction<CloudflareEnv> = async ({ env, params, request }) => {
-  try {
-    const id = Number(params.id)
-    if (!Number.isInteger(id)) return errorJson('Invalid id', 400)
-    const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
-    if (!body) return errorJson('Invalid JSON body', 400)
+  // DELETE /api/courts/:id
+  async delete(ctx: RestContext): Promise<Response> {
+    const id = this.getId(ctx)
+    if (id === null) return this.error('Invalid id', 400)
+    const db = this.db(ctx)
+    const [deleted] = await db.delete(courts).where(eq(courts.id, id)).returning({ id: courts.id })
+    if (!deleted) return this.error('Court not found', 404)
+    return this.json({ deleted: true, id })
+  }
 
-    const allowed: Record<string, string> = {
-      name: 'name',
-      location: 'location',
-      surface: 'surface',
-      is_indoor: 'is_indoor',
-      hourly_price_cents: 'hourly_price_cents',
+  // PATCH /api/courts/:id { name?, location?, surface?, is_indoor?, hourly_price_cents? }
+  async patch(ctx: RestContext): Promise<Response> {
+    const id = this.getId(ctx)
+    if (id === null) return this.error('Invalid id', 400)
+
+    const body = await this.parseJson<Record<string, unknown>>(ctx)
+    if (!body) return this.error('Invalid JSON body', 400)
+
+    const data: Record<string, unknown> = {}
+    if ('name' in body) {
+      const v = body.name
+      if (typeof v !== 'string' || v.trim().length === 0) return this.error('name cannot be empty', 400)
+      data.name = v.trim()
+    }
+    if ('location' in body) {
+      const v = body.location
+      data.location = typeof v === 'string' ? (v.trim() || null) : null
+    }
+    if ('surface' in body) {
+      const v = body.surface
+      const allowed = ['artificial_grass', 'clay', 'concrete', 'grass']
+      if (typeof v !== 'string' || !allowed.includes(v)) return this.error(`surface must be one of: ${allowed.join(', ')}`, 400)
+      data.surface = v
+    }
+    if ('is_indoor' in body) {
+      data.isIndoor = Boolean(body.is_indoor)
+    }
+    if ('hourly_price_cents' in body) {
+      const v = Number(body.hourly_price_cents)
+      if (!Number.isInteger(v) || v < 0) return this.error('hourly_price_cents must be a non-negative integer', 400)
+      data.hourlyPriceCents = v
     }
 
-    const sets: string[] = []
-    const args: (string | number | null | boolean)[] = []
-    for (const [k, col] of Object.entries(allowed)) {
-      if (k in body) {
-        sets.push(`${col} = ?`)
-        // bool -> int for is_indoor
-        const v = k === 'is_indoor' ? (body[k] ? 1 : 0) : body[k]
-        args.push(v as never)
-      }
-    }
-    if (sets.length === 0) return errorJson('No valid fields to update', 400)
+    if (Object.keys(data).length === 0) return this.error('No valid fields to update', 400)
 
-    const client = getTursoClient(env as never)
-    args.push(id)
-    const rs = await client.execute({
-      sql: `UPDATE courts SET ${sets.join(', ')} WHERE id = ? RETURNING *`,
-      args: args as never,
-    })
-    if (rs.rows.length === 0) return errorJson('Court not found', 404)
-    return json({ court: rs.rows[0] })
-  } catch (e) {
-    return errorJson('Failed to update court', 500, e instanceof Error ? e.message : String(e))
+    const db = this.db(ctx)
+    const [updated] = await db.update(courts).set(data as never).where(eq(courts.id, id)).returning()
+    if (!updated) return this.error('Court not found', 404)
+    return this.json({ court: updated })
+  }
+
+  async put(ctx: RestContext): Promise<Response> {
+    return this.patch(ctx)
   }
 }
+
+const ep = new CourtByIdEndpoint()
+export const onRequest: PagesFunction<CloudflareEnv> = (ctx) => ep.handle(ctx)
