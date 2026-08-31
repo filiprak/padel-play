@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import HelloWorld from '@/components/HelloWorld.vue'
-import { useCourts } from '@/composables/useCourts'
+import { ref, onMounted, computed } from 'vue'
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import { faRotate, faSpinner, faHeartPulse, faTriangleExclamation, faCode, faCheckCircle } from '@fortawesome/free-solid-svg-icons'
 
 interface HealthResponse {
   status: string
@@ -10,169 +10,132 @@ interface HealthResponse {
 }
 
 const health = ref<HealthResponse | null>(null)
-const healthLoading = ref(false)
-const healthError = ref<string | null>(null)
+const loading = ref(false)
+const error = ref<string | null>(null)
+const lastFetched = ref<Date | null>(null)
 
 async function fetchHealth() {
-  healthLoading.value = true
-  healthError.value = null
+  loading.value = true
+  error.value = null
   try {
     const res = await fetch('/api/health')
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     health.value = (await res.json()) as HealthResponse
+    lastFetched.value = new Date()
   } catch (e) {
-    healthError.value = e instanceof Error ? e.message : 'Unknown error'
+    error.value = e instanceof Error ? e.message : 'Unknown error'
   } finally {
-    healthLoading.value = false
+    loading.value = false
   }
 }
 
-// Courts via Turso
-const { courts, loading: courtsLoading, error: courtsError, fetchCourts, createCourt } = useCourts()
-const newCourtName = ref('')
+onMounted(fetchHealth)
 
-async function handleCreateCourt() {
-  if (!newCourtName.value.trim()) return
+const statusColor = computed(() => {
+  if (!health.value) return 'bg-gray-400'
+  return health.value.status === 'ok' ? 'bg-emerald-500' : 'bg-amber-500'
+})
+
+const uptimeLabel = computed(() => {
+  if (!health.value) return '—'
   try {
-    await createCourt(newCourtName.value.trim())
-    newCourtName.value = ''
-  } catch (e) {
-    courtsError.value = e instanceof Error ? e.message : String(e)
+    return new Date(health.value.uptime).toLocaleString()
+  } catch {
+    return String(health.value.uptime)
   }
-}
-
-onMounted(() => {
-  fetchHealth()
-  fetchCourts()
 })
 </script>
 
 <template>
-  <div class="home">
-    <h1>Padel Play</h1>
-    <p class="subtitle">Vite + Vue 3 + TypeScript + Cloudflare Functions + Turso</p>
+  <div class="mx-auto max-w-xl">
+    <!-- Hero -->
+    <div class="text-center mb-8">
+      <h1 class="text-3xl sm:text-4xl font-bold tracking-tight">Padel Play</h1>
+      <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">Minimal health dashboard</p>
+    </div>
 
-    <HelloWorld msg="Welcome to Padel Play" />
-
-    <section class="api-demo">
-      <h2>Health <code>/api/health</code></h2>
-      <button :disabled="healthLoading" @click="fetchHealth">
-        {{ healthLoading ? 'Loading…' : 'Refetch' }}
-      </button>
-      <pre v-if="health" class="api-output">{{ JSON.stringify(health, null, 2) }}</pre>
-      <p v-else-if="healthError" class="error">Error: {{ healthError }}</p>
-      <p v-else-if="healthLoading">Loading…</p>
-      <p v-else class="muted">No data yet.</p>
-    </section>
-
-    <section class="api-demo">
-      <h2>Courts <code>/api/courts</code></h2>
-      <p class="hint">Turso DB — requires <code>TURSO_DATABASE_URL</code> in <code>.dev.vars</code>. Run <code>pnpm db:init</code> to seed.</p>
-      <div class="courts">
-        <div class="courts-header">
-          <h3>Courts ({{ courts.length }})</h3>
-          <button :disabled="courtsLoading" @click="fetchCourts">{{ courtsLoading ? 'Loading…' : 'Refresh' }}</button>
+    <!-- Health card -->
+    <div class="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm overflow-hidden">
+      <div class="px-6 py-5 flex items-center justify-between gap-4">
+        <div class="flex items-center gap-3 min-w-0">
+          <span class="relative flex h-2.5 w-2.5 shrink-0">
+            <span :class="['animate-ping absolute inline-flex h-full w-full rounded-full opacity-75', statusColor]"></span>
+            <span :class="['relative inline-flex rounded-full h-2.5 w-2.5', statusColor]"></span>
+          </span>
+          <div class="min-w-0">
+            <h2 class="text-sm font-semibold flex items-center gap-2">
+              <FontAwesomeIcon :icon="faHeartPulse" class="text-emerald-500 text-[13px]" />
+              API Health
+              <code class="text-[11px] font-mono px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300">/api/health</code>
+            </h2>
+            <p class="text-xs text-gray-500 dark:text-gray-400 truncate">
+              <span v-if="lastFetched">Updated {{ lastFetched.toLocaleTimeString() }}</span>
+              <span v-else>—</span>
+            </p>
+          </div>
         </div>
-        <p v-if="courtsError" class="error">{{ courtsError }}</p>
-        <ul v-else-if="courts.length" class="court-list">
-          <li v-for="c in courts" :key="c.id">
-            <strong>{{ c.name }}</strong> — {{ c.location || '—' }} · {{ c.surface }} · {{ c.is_indoor ? 'indoor' : 'outdoor' }} · €{{ (c.hourly_price_cents / 100).toFixed(2) }}/h
-          </li>
-        </ul>
-        <p v-else-if="!courtsLoading" class="muted">No courts yet. Create one below or run <code>pnpm db:init</code>.</p>
 
-        <form @submit.prevent="handleCreateCourt" class="create-form">
-          <input v-model="newCourtName" placeholder="New court name" />
-          <button type="submit">Create</button>
-        </form>
-        <p class="hint">Try: <code>curl /api/courts</code>, <code>curl -X POST /api/courts -d '{"name":"My Court"}' -H 'Content-Type: application/json'</code></p>
+        <button
+          @click="fetchHealth"
+          :disabled="loading"
+          class="inline-flex items-center gap-1.5 shrink-0 rounded-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 px-4 py-2 text-sm font-medium hover:bg-black dark:hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
+        >
+          <FontAwesomeIcon :icon="loading ? faSpinner : faRotate" :spin="loading" class="h-3.5 w-3.5" />
+          <span>{{ loading ? 'Refreshing…' : 'Refresh' }}</span>
+        </button>
       </div>
-    </section>
+
+      <!-- Content -->
+      <div class="px-6 pb-6">
+        <!-- Loading skeleton -->
+        <div v-if="loading && !health && !error" class="animate-pulse space-y-3">
+          <div class="h-4 bg-gray-100 dark:bg-gray-800 rounded w-3/4"></div>
+          <div class="h-20 bg-gray-100 dark:bg-gray-800 rounded-xl"></div>
+        </div>
+
+        <!-- Error -->
+        <div v-else-if="error" class="rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 px-4 py-3 text-sm text-red-700 dark:text-red-300">
+          <p class="font-medium flex items-center gap-1.5">
+            <FontAwesomeIcon :icon="faTriangleExclamation" />
+            Failed to fetch health
+          </p>
+          <p class="mt-1 font-mono text-xs break-all">{{ error }}</p>
+          <p class="mt-2 text-xs">Tip: run <code class="font-mono bg-red-100 dark:bg-red-900/40 px-1 rounded">pnpm build && pnpm pages:dev</code> locally.</p>
+        </div>
+
+        <!-- Success -->
+        <div v-else-if="health" class="space-y-3">
+          <div class="grid grid-cols-3 gap-3">
+            <div class="rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 p-3">
+              <div class="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                <FontAwesomeIcon :icon="faCheckCircle" class="text-emerald-500" /> Status
+              </div>
+              <div class="mt-1 text-sm font-semibold capitalize">{{ health.status }}</div>
+            </div>
+            <div class="rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 p-3 col-span-2">
+              <div class="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                <FontAwesomeIcon :icon="faCode" /> Version
+              </div>
+              <div class="mt-1 text-sm font-mono">{{ health.version }}</div>
+            </div>
+          </div>
+
+          <div class="rounded-xl bg-gray-950 dark:bg-black text-gray-100 p-4 overflow-auto">
+            <div class="text-[11px] uppercase tracking-wide text-gray-400 mb-2 flex items-center gap-1.5">
+              <FontAwesomeIcon :icon="faCode" /> Response
+            </div>
+            <pre class="text-xs font-mono leading-relaxed whitespace-pre-wrap break-all">{{ JSON.stringify(health, null, 2) }}</pre>
+            <div class="mt-3 text-[11px] text-gray-400">Uptime marker: {{ uptimeLabel }}</div>
+          </div>
+        </div>
+
+        <!-- Empty -->
+        <div v-else class="text-sm text-gray-500 dark:text-gray-400 py-2">No data yet.</div>
+      </div>
+    </div>
+
+    <p class="mt-6 text-center text-xs text-gray-500 dark:text-gray-400">
+      Dark mode syncs with system &amp; persists in <code class="font-mono">localStorage</code>.
+    </p>
   </div>
 </template>
-
-<style scoped>
-.home h1 {
-  font-size: 2.25rem;
-  margin-bottom: 0.25rem;
-}
-.subtitle {
-  color: #6b7280;
-  margin-bottom: 1.5rem;
-}
-.api-demo {
-  margin-top: 2rem;
-  padding: 1.5rem;
-  border: 1px solid #e5e7eb;
-  border-radius: 0.75rem;
-  background: #f9fafb;
-}
-.api-demo h2 {
-  font-size: 1.1rem;
-  margin-bottom: 1rem;
-}
-.api-demo button {
-  padding: 0.5rem 1rem;
-  border-radius: 0.5rem;
-  border: 1px solid #d1d5db;
-  background: white;
-  cursor: pointer;
-  font-weight: 600;
-}
-.api-demo button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-.api-output {
-  margin-top: 1rem;
-  padding: 1rem;
-  background: #111827;
-  color: #a7f3d0;
-  border-radius: 0.5rem;
-  overflow: auto;
-  font-size: 0.85rem;
-}
-.error {
-  color: #dc2626;
-  margin-top: 1rem;
-}
-.muted {
-  color: #6b7280;
-  margin-top: 1rem;
-}
-.hint {
-  margin-top: 1rem;
-  font-size: 0.8rem;
-  color: #6b7280;
-}
-.court-list {
-  margin: 1rem 0;
-  padding-left: 1.25rem;
-}
-.court-list li {
-  margin: 0.25rem 0;
-}
-.create-form {
-  margin-top: 1rem;
-  display: flex;
-  gap: 0.5rem;
-}
-.create-form input {
-  flex: 1;
-  padding: 0.5rem;
-  border: 1px solid #d1d5db;
-  border-radius: 0.5rem;
-}
-.create-form button {
-  white-space: nowrap;
-}
-.courts-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin: 1rem 0 0.5rem;
-}
-.courts-header h3 {
-  margin: 0;
-}
-</style>

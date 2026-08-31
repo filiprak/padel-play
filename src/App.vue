@@ -1,76 +1,68 @@
 <script setup lang="ts">
-import { RouterView, RouterLink } from 'vue-router'
+import { RouterView } from 'vue-router'
+import { ref, onMounted, watch } from 'vue'
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import { faSun, faMoon } from '@fortawesome/free-solid-svg-icons'
+
+const isDark = ref(false)
+
+function applyDark(v: boolean) {
+  document.documentElement.classList.toggle('dark', v)
+  localStorage.setItem('theme', v ? 'dark' : 'light')
+}
+
+function toggleDark() {
+  isDark.value = !isDark.value
+  applyDark(isDark.value)
+}
+
+onMounted(() => {
+  const saved = localStorage.getItem('theme')
+  if (saved === 'dark' || saved === 'light') {
+    isDark.value = saved === 'dark'
+  } else {
+    isDark.value = window.matchMedia('(prefers-color-scheme: dark)').matches
+  }
+  applyDark(isDark.value)
+  // sync with system if no explicit choice
+  const mql = window.matchMedia('(prefers-color-scheme: dark)')
+  const handler = (e: MediaQueryListEvent) => {
+    if (!localStorage.getItem('theme')) {
+      isDark.value = e.matches
+      applyDark(e.matches)
+    }
+  }
+  mql.addEventListener('change', handler)
+})
+
+// keep in sync if changed elsewhere
+watch(isDark, (v) => applyDark(v))
 </script>
 
 <template>
-  <div class="app-layout">
-    <header class="app-header">
-      <nav class="nav">
-        <RouterLink to="/" class="logo">Padel Play</RouterLink>
-        <div class="nav-links">
-          <RouterLink to="/">Home</RouterLink>
-          <RouterLink to="/about">About</RouterLink>
+  <div class="min-h-screen flex flex-col bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 font-sans antialiased transition-colors">
+    <header class="sticky top-0 z-10 border-b border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-950/80 backdrop-blur">
+      <div class="max-w-3xl mx-auto w-full px-6 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <img src="/favicon.svg" alt="Padel Play logo" class="w-7 h-7 shrink-0" />
+          <span class="font-semibold text-[17px] tracking-tight">Padel Play</span>
         </div>
-      </nav>
+        <button
+          @click="toggleDark"
+          :aria-label="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
+          class="inline-flex items-center justify-center w-9 h-9 rounded-full border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+        >
+          <FontAwesomeIcon :icon="isDark ? faSun : faMoon" class="text-sm" />
+        </button>
+      </div>
     </header>
-    <main class="app-main">
+
+    <main class="flex-1 w-full max-w-3xl mx-auto px-6 py-10 sm:py-14">
       <RouterView />
     </main>
-    <footer class="app-footer">
-      <p>Built with Vite + Vue 3 + Cloudflare Pages Functions</p>
+
+    <footer class="border-t border-gray-200 dark:border-gray-800 px-6 py-4 text-center text-xs text-gray-500 dark:text-gray-400">
+      <p>Padel Play · Vite + Vue + Tailwind · Cloudflare Pages</p>
     </footer>
   </div>
 </template>
-
-<style scoped>
-.app-layout {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-.app-header {
-  border-bottom: 1px solid #e5e7eb;
-  padding: 0.75rem 1.5rem;
-  background: white;
-}
-.nav {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  max-width: 1100px;
-  margin: 0 auto;
-  width: 100%;
-}
-.logo {
-  font-weight: 700;
-  font-size: 1.25rem;
-  text-decoration: none;
-  color: #111827;
-}
-.nav-links {
-  display: flex;
-  gap: 1rem;
-}
-.nav-links a {
-  text-decoration: none;
-  color: #4b5563;
-  font-weight: 500;
-}
-.nav-links a.router-link-active {
-  color: #2563eb;
-}
-.app-main {
-  flex: 1;
-  max-width: 1100px;
-  width: 100%;
-  margin: 0 auto;
-  padding: 2rem 1.5rem;
-}
-.app-footer {
-  border-top: 1px solid #e5e7eb;
-  padding: 1rem 1.5rem;
-  text-align: center;
-  color: #6b7280;
-  font-size: 0.875rem;
-}
-</style>
