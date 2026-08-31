@@ -3,46 +3,33 @@ import { ref, onMounted } from 'vue'
 import HelloWorld from '@/components/HelloWorld.vue'
 import { useCourts } from '@/composables/useCourts'
 
-interface ApiResponse {
-  message: string
-  timestamp: string
+interface HealthResponse {
+  status: string
+  uptime: number
+  version: string
 }
 
-const apiData = ref<ApiResponse | null>(null)
-const loading = ref(false)
-const error = ref<string | null>(null)
+const health = ref<HealthResponse | null>(null)
+const healthLoading = ref(false)
+const healthError = ref<string | null>(null)
 
-async function fetchHello() {
-  loading.value = true
-  error.value = null
+async function fetchHealth() {
+  healthLoading.value = true
+  healthError.value = null
   try {
-    const res = await fetch('/api/hello')
+    const res = await fetch('/api/health')
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    apiData.value = (await res.json()) as ApiResponse
+    health.value = (await res.json()) as HealthResponse
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Unknown error'
+    healthError.value = e instanceof Error ? e.message : 'Unknown error'
   } finally {
-    loading.value = false
+    healthLoading.value = false
   }
 }
 
-onMounted(fetchHello)
-
-// Turso demo
+// Courts via Turso
 const { courts, loading: courtsLoading, error: courtsError, fetchCourts, createCourt } = useCourts()
 const newCourtName = ref('')
-const dbHealth = ref<unknown>(null)
-const dbHealthError = ref<string | null>(null)
-
-async function checkDb() {
-  try {
-    const r = await fetch('/api/db-health')
-    dbHealth.value = await r.json()
-    dbHealthError.value = r.ok ? null : (dbHealth.value as { error?: string })?.error || `HTTP ${r.status}`
-  } catch (e) {
-    dbHealthError.value = e instanceof Error ? e.message : String(e)
-  }
-}
 
 async function handleCreateCourt() {
   if (!newCourtName.value.trim()) return
@@ -55,57 +42,50 @@ async function handleCreateCourt() {
 }
 
 onMounted(() => {
+  fetchHealth()
   fetchCourts()
-  checkDb()
 })
 </script>
 
 <template>
   <div class="home">
     <h1>Padel Play</h1>
-    <p class="subtitle">Boilerplate SPA — Vite + Vue 3 + TypeScript + Cloudflare Functions</p>
+    <p class="subtitle">Vite + Vue 3 + TypeScript + Cloudflare Functions + Turso</p>
 
     <HelloWorld msg="Welcome to Padel Play" />
 
     <section class="api-demo">
-      <h2>API Demo <code>/api/hello</code></h2>
-      <button :disabled="loading" @click="fetchHello">
-        {{ loading ? 'Loading…' : 'Refetch' }}
+      <h2>Health <code>/api/health</code></h2>
+      <button :disabled="healthLoading" @click="fetchHealth">
+        {{ healthLoading ? 'Loading…' : 'Refetch' }}
       </button>
-      <pre v-if="apiData" class="api-output">{{ JSON.stringify(apiData, null, 2) }}</pre>
-      <p v-else-if="error" class="error">Error: {{ error }}</p>
-      <p v-else-if="loading">Loading API…</p>
-      <p v-else class="muted">No data yet. (Run <code>pnpm pages:dev</code> to test Functions locally)</p>
-      <p class="hint">
-        Dev: <code>pnpm dev</code> for SPA only, <code>pnpm build &amp;&amp; pnpm pages:dev</code> for full Pages +
-        Functions.
-      </p>
+      <pre v-if="health" class="api-output">{{ JSON.stringify(health, null, 2) }}</pre>
+      <p v-else-if="healthError" class="error">Error: {{ healthError }}</p>
+      <p v-else-if="healthLoading">Loading…</p>
+      <p v-else class="muted">No data yet.</p>
     </section>
 
     <section class="api-demo">
-      <h2>Turso DB Demo <code>/api/courts</code> + <code>/api/db-health</code></h2>
-      <div class="db-health">
-        <button @click="checkDb">Check DB</button>
-        <span v-if="dbHealthError" class="error"> {{ dbHealthError }} (set TURSO_DATABASE_URL in .dev.vars)</span>
-        <pre v-else-if="dbHealth" class="api-output">{{ JSON.stringify(dbHealth, null, 2) }}</pre>
-      </div>
-
+      <h2>Courts <code>/api/courts</code></h2>
+      <p class="hint">Turso DB — requires <code>TURSO_DATABASE_URL</code> in <code>.dev.vars</code>. Run <code>pnpm db:init</code> to seed.</p>
       <div class="courts">
-        <h3>Courts ({{ courts.length }})</h3>
-        <button :disabled="courtsLoading" @click="fetchCourts">{{ courtsLoading ? 'Loading…' : 'Refresh' }}</button>
+        <div class="courts-header">
+          <h3>Courts ({{ courts.length }})</h3>
+          <button :disabled="courtsLoading" @click="fetchCourts">{{ courtsLoading ? 'Loading…' : 'Refresh' }}</button>
+        </div>
         <p v-if="courtsError" class="error">{{ courtsError }}</p>
         <ul v-else-if="courts.length" class="court-list">
           <li v-for="c in courts" :key="c.id">
             <strong>{{ c.name }}</strong> — {{ c.location || '—' }} · {{ c.surface }} · {{ c.is_indoor ? 'indoor' : 'outdoor' }} · €{{ (c.hourly_price_cents / 100).toFixed(2) }}/h
           </li>
         </ul>
-        <p v-else-if="!courtsLoading" class="muted">No courts yet. Create one or run <code>pnpm db:init</code>.</p>
+        <p v-else-if="!courtsLoading" class="muted">No courts yet. Create one below or run <code>pnpm db:init</code>.</p>
 
         <form @submit.prevent="handleCreateCourt" class="create-form">
           <input v-model="newCourtName" placeholder="New court name" />
           <button type="submit">Create</button>
         </form>
-        <p class="hint">Try: <code>curl /api/courts</code>, <code>curl -X POST /api/courts -d '{"name":"My Court"}'</code></p>
+        <p class="hint">Try: <code>curl /api/courts</code>, <code>curl -X POST /api/courts -d '{"name":"My Court"}' -H 'Content-Type: application/json'</code></p>
       </div>
     </section>
   </div>
@@ -186,10 +166,13 @@ onMounted(() => {
 .create-form button {
   white-space: nowrap;
 }
-.db-health {
-  margin-bottom: 1.5rem;
-}
-.courts h3 {
+.courts-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin: 1rem 0 0.5rem;
+}
+.courts-header h3 {
+  margin: 0;
 }
 </style>

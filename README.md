@@ -5,7 +5,7 @@ SPA boilerplate with **Vite + Vue 3 + TypeScript** (frontend) + **Cloudflare Pag
 ## Stack
 
 - **Frontend**: Vite 8, Vue 3.5, Vue Router 5, TypeScript 5.9, SPA with history mode
-- **API**: Cloudflare Pages Functions (`functions/api/*.ts`) — file-based routing (`/api/hello` → `functions/api/hello.ts`)
+- **API**: Cloudflare Pages Functions (`functions/api/*.ts`) — file-based routing (`/api/health` → `functions/api/health.ts`, `/api/courts` → `functions/api/courts.ts`)
 - **DB**: Turso (libSQL, SQLite at edge) via `@libsql/client/web` + optional `drizzle-orm` (`db/schema.ts`)
 - **Deploy**: Cloudflare Pages (static `dist/` + Functions)
 - **Package Manager**: pnpm 11.24.0 (enforced via `devEngines` + `packageManager`)
@@ -15,20 +15,15 @@ SPA boilerplate with **Vite + Vue 3 + TypeScript** (frontend) + **Cloudflare Pag
 ```
 .
 ├── db/
-│   ├── schema.sql        # SQL schema (courts + bookings)
+│   ├── schema.sql        # SQL schema (courts)
 │   └── schema.ts         # Drizzle typed schema (optional)
 ├── drizzle.config.ts     # drizzle-kit config (turso)
 ├── functions/
 │   ├── lib/turso.ts      # getTursoClient(env) helpers
 │   └── api/
-│       ├── hello.ts      # GET /api/hello, POST /api/hello
 │       ├── health.ts     # GET /api/health
-│       ├── echo.ts       # ANY /api/echo
-│       ├── db-health.ts  # GET /api/db-health (Turso ping)
 │       ├── courts.ts     # GET/POST /api/courts
-│       ├── courts/[id].ts # GET/PATCH/DELETE /api/courts/:id
-│       ├── bookings.ts   # GET/POST /api/bookings
-│       └── bookings/[id].ts # GET/DELETE /api/bookings/:id
+│       └── courts/[id].ts # GET/PATCH/DELETE /api/courts/:id
 ├── public/
 │   ├── favicon.svg
 │   ├── _redirects        # SPA fallback: /* -> /index.html 200
@@ -38,7 +33,7 @@ SPA boilerplate with **Vite + Vue 3 + TypeScript** (frontend) + **Cloudflare Pag
 │   ├── components/HelloWorld.vue
 │   ├── router/index.ts
 │   ├── views/
-│   │   ├── HomeView.vue  # Demo fetch to /api/hello
+│   │   ├── HomeView.vue  # Demo fetch to /api/health + /api/courts
 │   │   ├── AboutView.vue
 │   │   └── NotFoundView.vue
 │   ├── App.vue
@@ -87,14 +82,9 @@ pnpm db:migrate       # drizzle-kit migrate
 
 File-based routing under `functions/`:
 
-- `functions/api/hello.ts` → `GET /api/hello` (`onRequestGet`), `POST /api/hello` (`onRequestPost`)
 - `functions/api/health.ts` → `GET /api/health`
-- `functions/api/echo.ts` → `ANY /api/echo` (`onRequest`)
-- `functions/api/db-health.ts` → `GET /api/db-health` (Turso connectivity)
 - `functions/api/courts.ts` → `GET /api/courts?limit=&offset=`, `POST /api/courts`
 - `functions/api/courts/[id].ts` → `GET/PATCH/DELETE /api/courts/:id`
-- `functions/api/bookings.ts` → `GET /api/bookings?court_id=`, `POST /api/bookings` (overlap check)
-- `functions/api/bookings/[id].ts` → `GET /api/bookings/:id`, `DELETE /api/bookings/:id` (`?hard=1` for hard delete)
 
 Turso helper: `functions/lib/turso.ts:8` `getTursoClient(env)` uses `@libsql/client/web` (fetch-based for workerd). Env required: `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`.
 
@@ -117,15 +107,14 @@ turso db shell padel-play < db/schema.sql
 
 # 4. Test locally
 pnpm build && pnpm pages:dev
-curl http://localhost:8788/api/db-health
+curl http://localhost:8788/api/health
 curl http://localhost:8788/api/courts
 curl -X POST http://localhost:8788/api/courts -H 'Content-Type: application/json' -d '{"name":"Test Court"}'
-curl -X POST http://localhost:8788/api/bookings -H 'Content-Type: application/json' -d '{"court_id":1,"player_name":"Ada","starts_at":"2026-09-01T10:00:00Z","ends_at":"2026-09-01T11:30:00Z"}'
 ```
 
-Schema: `db/schema.sql:1` (`courts`, `bookings` with FK + indexes). Typed version via `db/schema.ts:1` for drizzle. Production: set `TURSO_DATABASE_URL` + `TURSO_AUTH_TOKEN` in Cloudflare Pages -> Settings -> Variables/Secrets.
+Schema: `db/schema.sql:1` (`courts` with index). Typed version via `db/schema.ts:1` for drizzle. Production: set `TURSO_DATABASE_URL` + `TURSO_AUTH_TOKEN` in Cloudflare Pages -> Settings -> Variables/Secrets.
 
-Frontend demo: `src/views/HomeView.vue:31` uses `src/composables/useCourts.ts:1` and `src/lib/api.ts:1` to list/create courts and check `db-health`.
+Frontend demo: `src/views/HomeView.vue:1` uses `src/composables/useCourts.ts:1` and `src/lib/api.ts:1` to list/create courts and check `/api/health`.
 
 Bindings: edit `wrangler.toml` and run `pnpm cf-typegen` to generate types in `cloudflare-env.d.ts`. Access via `context.env.MY_KV` in Functions.
 

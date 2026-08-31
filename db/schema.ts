@@ -18,22 +18,5 @@ export const courts = sqliteTable('courts', {
   createdAt: text('created_at').notNull().default("strftime('%Y-%m-%dT%H:%M:%SZ','now')"),
 })
 
-export const bookings = sqliteTable('bookings', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  courtId: integer('court_id')
-    .notNull()
-    .references(() => courts.id, { onDelete: 'cascade' }),
-  playerName: text('player_name').notNull(),
-  playerEmail: text('player_email'),
-  startsAt: text('starts_at').notNull(),
-  endsAt: text('ends_at').notNull(),
-  status: text('status', { enum: ['confirmed', 'cancelled', 'pending'] })
-    .notNull()
-    .default('confirmed'),
-  createdAt: text('created_at').notNull().default("strftime('%Y-%m-%dT%H:%M:%SZ','now')"),
-})
-
 export type Court = typeof courts.$inferSelect
 export type NewCourt = typeof courts.$inferInsert
-export type Booking = typeof bookings.$inferSelect
-export type NewBooking = typeof bookings.$inferInsert

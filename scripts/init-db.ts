@@ -52,10 +52,6 @@ async function main() {
   console.log(`Done. ${courts.rows.length} court(s) in DB:`)
   for (const r of courts.rows) console.log(' -', r)
 
-  // Verify bookings table
-  const bookings = await client.execute('SELECT COUNT(*) as cnt FROM bookings')
-  console.log(`Bookings: ${bookings.rows[0]?.cnt ?? 0}`)
-
   client.close()
 }
 
