@@ -20,7 +20,7 @@
     "paths": {
       "@/*": ["src/*"]
     },
-    "types": ["vite/client"]
+    "types": ["vite/client", "@cloudflare/workers-types"]
   },
-  "include": ["src/**/*", "env.d.ts", "functions/**/*"]
+  "include": ["src/**/*", "env.d.ts", "functions/**/*", "db/**/*"]
 }

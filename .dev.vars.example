@@ -1,3 +1,10 @@
-# Copy to .dev.vars for local wrangler pages dev
-# MY_KV binding etc is configured in wrangler.toml
-# MY_VAR="hello local"
+# Copy to .dev.vars for local `wrangler pages dev` (gitignored via .gitignore)
+# Required for Turso DB integration (get these from https://turso.tech)
+# Create DB: turso db create padel-play
+# Get URL:   turso db show padel-play --url
+# Get token: turso db tokens create padel-play
+TURSO_DATABASE_URL="libsql://your-db.turso.io"
+TURSO_AUTH_TOKEN="eyJ..."
+
+# Optional overrides for local dev (these override wrangler.toml [vars])
+# TURSO_DATABASE_URL already set above

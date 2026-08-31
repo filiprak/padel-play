@@ -2,9 +2,19 @@ name = "padel-play"
 compatibility_date = "2024-12-01"
 pages_build_output_dir = "dist"
 
-# Uncomment and configure bindings as needed:
+# Turso (libSQL) — set via .dev.vars locally and Pages Dashboard > Settings > Variables/Secrets in production
+# TURSO_DATABASE_URL is like libsql://your-db-username.turso.io
+# TURSO_AUTH_TOKEN is generated via `turso db tokens create <db-name>`
+# For local dev, copy .dev.vars.example -> .dev.vars
+# NOTE: Keep [vars] commented unless you want defaults baked into the build.
+# Example (uncomment to set defaults):
 # [vars]
-# API_URL = "https://api.example.com"
+# TURSO_DATABASE_URL = "libsql://example.turso.io"
+
+# Additional bindings as needed:
+# [[kv_namespaces]]
+# binding = "MY_KV"
+# id = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 # [[kv_namespaces]]
 # binding = "MY_KV"
