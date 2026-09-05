@@ -101,6 +101,14 @@ describe('createUser', () => {
     expect(typeof fetched.user.createdAt).toBe('string')
   })
 
+  it('stores real ISO timestamps, not the strftime expression text', async () => {
+    const { user } = await createUser(db, { name: 'Ada Lovelace', email: 'ada@example.com' })
+    for (const stamp of [user.createdAt, user.updatedAt]) {
+      expect(stamp).not.toContain('strftime')
+      expect(Number.isNaN(Date.parse(stamp))).toBe(false)
+    }
+  })
+
   it('trims names, lowercases emails and defaults role to player', async () => {
     const { user } = await createUser(db, { name: '  Ada  ', email: 'ADA@Example.COM' })
     const [row] = await db.select().from(users)

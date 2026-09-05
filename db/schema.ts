@@ -2,15 +2,22 @@
 // If you use drizzle, replace raw SQL in functions with drizzle queries.
 // See drizzle.config.ts
 
+import { sql } from 'drizzle-orm'
 import { sqliteTable, text, integer, primaryKey } from 'drizzle-orm/sqlite-core'
+
+// NOTE: timestamp defaults MUST be `sql` expressions, not plain strings.
+// A plain string `.default("strftime(...)")` is treated by drizzle as a
+// literal value and gets inserted verbatim into rows (bug: created_at
+// contained the text "strftime('%Y-%m-%dT%H:%M:%SZ','now')").
+const nowIso = sql`(strftime('%Y-%m-%dT%H:%M:%SZ','now'))`
 
 export const users = sqliteTable('users', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull(),
   email: text('email').notNull().unique(),
   role: text('role', { enum: ['player', 'admin', 'coach'] }).notNull().default('player'),
-  createdAt: text('created_at').notNull().default("strftime('%Y-%m-%dT%H:%M:%SZ','now')"),
-  updatedAt: text('updated_at').notNull().default("strftime('%Y-%m-%dT%H:%M:%SZ','now')"),
+  createdAt: text('created_at').notNull().default(nowIso),
+  updatedAt: text('updated_at').notNull().default(nowIso),
 })
 
 export type User = typeof users.$inferSelect
@@ -20,8 +27,8 @@ export const places = sqliteTable('places', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull(),
   location: text('location'),
-  createdAt: text('created_at').notNull().default("strftime('%Y-%m-%dT%H:%M:%SZ','now')"),
-  updatedAt: text('updated_at').notNull().default("strftime('%Y-%m-%dT%H:%M:%SZ','now')"),
+  createdAt: text('created_at').notNull().default(nowIso),
+  updatedAt: text('updated_at').notNull().default(nowIso),
 })
 
 export type Place = typeof places.$inferSelect
@@ -34,8 +41,8 @@ export const matches = sqliteTable('matches', {
     .references(() => places.id),
   startsAt: text('starts_at').notNull(),
   endsAt: text('ends_at').notNull(),
-  createdAt: text('created_at').notNull().default("strftime('%Y-%m-%dT%H:%M:%SZ','now')"),
-  updatedAt: text('updated_at').notNull().default("strftime('%Y-%m-%dT%H:%M:%SZ','now')"),
+  createdAt: text('created_at').notNull().default(nowIso),
+  updatedAt: text('updated_at').notNull().default(nowIso),
 })
 
 export type Match = typeof matches.$inferSelect
