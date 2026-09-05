@@ -2,11 +2,27 @@
 import { ref, onMounted, computed } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { faArrowLeft, faSpinner, faTriangleExclamation } from '@fortawesome/free-solid-svg-icons'
-import { listPlaces, createPlace, listUsers, createMatch, ApiError } from '@/services'
+import { faArrowLeft, faSpinner, faTriangleExclamation, faTrash } from '@fortawesome/free-solid-svg-icons'
+import {
+  listPlaces,
+  createPlace,
+  listUsers,
+  createMatch,
+  getMatch,
+  updateMatch,
+  deleteMatch,
+  ApiError,
+} from '@/services'
 import type { MatchTeam, PlaceDto, UserDto } from '@shared'
 
+const props = defineProps<{
+  /** Present in edit mode (`/matches/:id/edit`), absent when creating. */
+  matchId?: string
+}>()
+
 const router = useRouter()
+const isEdit = computed(() => props.matchId !== undefined && props.matchId !== '')
+const editId = computed(() => Number(props.matchId))
 
 const places = ref<PlaceDto[]>([])
 const users = ref<UserDto[]>([])
@@ -21,6 +37,14 @@ const newPlaceLocation = ref('')
 const matchDate = ref('')
 const startTime = ref('18:00')
 const durationMin = ref(90)
+const extraDuration = ref<number | null>(null)
+const durationOptions = computed(() => {
+  const base = [60, 90, 120]
+  if (extraDuration.value !== null && !base.includes(extraDuration.value)) {
+    return [...base, extraDuration.value].sort((a, b) => a - b)
+  }
+  return base
+})
 
 /** Four slots: two per team. '' = open spot, otherwise a user id as string. */
 const slots = ref<{ team: MatchTeam; userId: string }[]>([
@@ -34,31 +58,74 @@ const submitting = ref(false)
 const submitError = ref<string | null>(null)
 const formError = ref<string | null>(null)
 
+const confirmingDelete = ref(false)
+const deleting = ref(false)
+const deleteError = ref<string | null>(null)
+
 function defaultDate(): string {
   const d = new Date()
   d.setDate(d.getDate() + 1)
+  return toDateInput(d)
+}
+
+function toDateInput(d: Date): string {
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${y}-${m}-${day}`
 }
 
+function toTimeInput(d: Date): string {
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
 async function loadOptions() {
   loadingOptions.value = true
   loadError.value = null
   try {
-    const [p, u] = await Promise.all([listPlaces({ limit: 100 }), listUsers({ limit: 100 })])
-    places.value = p.places
-    users.value = u.users
+    if (isEdit.value) {
+      if (!Number.isInteger(editId.value) || editId.value <= 0) throw new Error('Invalid match id')
+      const [p, u, m] = await Promise.all([
+        listPlaces({ limit: 100 }),
+        listUsers({ limit: 100 }),
+        getMatch(editId.value),
+      ])
+      places.value = p.places
+      users.value = u.users
+      const match = m.match
+      placeId.value = match.place.id
+      const start = new Date(match.startsAt)
+      const end = new Date(match.endsAt)
+      matchDate.value = toDateInput(start)
+      startTime.value = toTimeInput(start)
+      const diffMin = Math.round((end.getTime() - start.getTime()) / 60_000)
+      durationMin.value = diffMin > 0 ? diffMin : 90
+      if (![60, 90, 120].includes(durationMin.value)) extraDuration.value = durationMin.value
+      const byTeam: Record<MatchTeam, string[]> = { 1: [], 2: [] }
+      for (const pl of match.players) {
+        if (pl.team === 1 || pl.team === 2) byTeam[pl.team].push(String(pl.user.id))
+      }
+      slots.value = [
+        { team: 1, userId: byTeam[1][0] ?? '' },
+        { team: 1, userId: byTeam[1][1] ?? '' },
+        { team: 2, userId: byTeam[2][0] ?? '' },
+        { team: 2, userId: byTeam[2][1] ?? '' },
+      ]
+    } else {
+      const [p, u] = await Promise.all([listPlaces({ limit: 100 }), listUsers({ limit: 100 })])
+      places.value = p.places
+      users.value = u.users
+      matchDate.value = defaultDate()
+    }
   } catch (e) {
-    loadError.value = e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Unknown error'
+    loadError.value =
+      e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Unknown error'
   } finally {
     loadingOptions.value = false
   }
 }
 
 onMounted(() => {
-  matchDate.value = defaultDate()
   void loadOptions()
 })
 
@@ -103,19 +170,38 @@ async function onSubmit() {
 
     const start = new Date(`${matchDate.value}T${startTime.value}`)
     const end = new Date(start.getTime() + durationMin.value * 60_000)
-    await createMatch({
+    const payload = {
       placeId: resolvedPlaceId,
       startsAt: start.toISOString(),
       endsAt: end.toISOString(),
       players: slots.value
         .filter((s) => s.userId !== '')
         .map((s) => ({ userId: Number(s.userId), team: s.team })),
-    })
+    }
+    if (isEdit.value) {
+      await updateMatch(editId.value, payload)
+    } else {
+      await createMatch(payload)
+    }
     await router.push({ name: 'home' })
   } catch (e) {
     submitError.value = e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Unknown error'
   } finally {
     submitting.value = false
+  }
+}
+
+async function onDelete() {
+  deleteError.value = null
+  deleting.value = true
+  try {
+    await deleteMatch(editId.value)
+    await router.push({ name: 'home' })
+  } catch (e) {
+    deleteError.value = e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Unknown error'
+    confirmingDelete.value = false
+  } finally {
+    deleting.value = false
   }
 }
 
@@ -133,7 +219,7 @@ const inputClass =
       All matches
     </RouterLink>
 
-    <h1 class="text-2xl sm:text-3xl font-bold tracking-tight">New match</h1>
+    <h1 class="text-2xl sm:text-3xl font-bold tracking-tight">{{ isEdit ? 'Edit match' : 'New match' }}</h1>
     <p class="mt-1.5 text-sm text-gray-600 dark:text-gray-400">2 vs 2 — leave slots empty for open spots.</p>
 
     <div
@@ -142,7 +228,7 @@ const inputClass =
     >
       <p class="font-medium flex items-center gap-1.5">
         <FontAwesomeIcon :icon="faTriangleExclamation" />
-        Failed to load places and players
+        {{ isEdit ? 'Failed to load the match' : 'Failed to load places and players' }}
       </p>
       <p class="mt-1 font-mono text-xs break-all">{{ loadError }}</p>
       <button
@@ -218,9 +304,7 @@ const inputClass =
         <label class="block">
           <span class="mb-1 block text-xs text-gray-500 dark:text-gray-400">Duration</span>
           <select v-model.number="durationMin" :class="inputClass">
-            <option :value="60">60 min</option>
-            <option :value="90">90 min</option>
-            <option :value="120">120 min</option>
+            <option v-for="mins in durationOptions" :key="mins" :value="mins">{{ mins }} min</option>
           </select>
         </label>
       </fieldset>
@@ -264,7 +348,7 @@ const inputClass =
       >
         <p class="font-medium flex items-center gap-1.5">
           <FontAwesomeIcon :icon="faTriangleExclamation" />
-          Couldn't create the match
+          {{ isEdit ? "Couldn't save the match" : "Couldn't create the match" }}
         </p>
         <p class="mt-1 font-mono text-xs break-all">{{ submitError }}</p>
       </div>
@@ -275,8 +359,46 @@ const inputClass =
         class="w-full inline-flex items-center justify-center gap-2 rounded-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 px-4 py-3 text-sm font-semibold hover:bg-black dark:hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
       >
         <FontAwesomeIcon v-if="submitting" :icon="faSpinner" spin />
-        {{ submitting ? 'Creating…' : 'Create match' }}
+        {{ submitting ? (isEdit ? 'Saving…' : 'Creating…') : isEdit ? 'Save changes' : 'Create match' }}
       </button>
+
+      <!-- Delete (edit mode only) -->
+      <div v-if="isEdit" class="pt-2 border-t border-gray-200 dark:border-gray-800">
+        <template v-if="!confirmingDelete">
+          <button
+            type="button"
+            @click="confirmingDelete = true"
+            :disabled="submitting || loadingOptions"
+            class="inline-flex items-center gap-1.5 text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 disabled:opacity-50 transition"
+          >
+            <FontAwesomeIcon :icon="faTrash" class="text-xs" />
+            Delete match
+          </button>
+        </template>
+        <template v-else>
+          <p class="text-sm font-medium">Delete this match?</p>
+          <div class="mt-2 flex items-center gap-2">
+            <button
+              type="button"
+              @click="onDelete"
+              :disabled="deleting"
+              class="inline-flex items-center gap-1.5 rounded-full bg-red-600 text-white px-4 py-2 text-sm font-medium hover:bg-red-700 disabled:opacity-50 transition"
+            >
+              <FontAwesomeIcon v-if="deleting" :icon="faSpinner" spin />
+              {{ deleting ? 'Deleting…' : 'Yes, delete' }}
+            </button>
+            <button
+              type="button"
+              @click="confirmingDelete = false"
+              :disabled="deleting"
+              class="rounded-full border border-gray-300 dark:border-gray-700 px-4 py-2 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 transition"
+            >
+              Cancel
+            </button>
+          </div>
+          <p v-if="deleteError" class="mt-2 text-sm text-red-600 dark:text-red-400">{{ deleteError }}</p>
+        </template>
+      </div>
     </form>
   </div>
 </template>

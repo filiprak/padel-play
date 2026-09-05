@@ -11,7 +11,13 @@ const router = createRouter({
     {
       path: '/matches/new',
       name: 'match-new',
-      component: () => import('@/views/NewMatchView.vue'),
+      component: () => import('@/views/MatchFormView.vue'),
+    },
+    {
+      path: '/matches/:id/edit',
+      name: 'match-edit',
+      component: () => import('@/views/MatchFormView.vue'),
+      props: (route) => ({ matchId: route.params.id }),
     },
     {
       path: '/:pathMatch(.*)*',

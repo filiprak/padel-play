@@ -61,9 +61,5 @@ watch(isDark, (v) => applyDark(v))
     <main class="flex-1 w-full max-w-3xl mx-auto px-6 py-10 sm:py-14">
       <RouterView />
     </main>
-
-    <footer class="border-t border-gray-200 dark:border-gray-800 px-6 py-4 text-center text-xs text-gray-500 dark:text-gray-400">
-      <p>Padel Play · Vite + Vue + Tailwind · Cloudflare Pages</p>
-    </footer>
   </div>
 </template>

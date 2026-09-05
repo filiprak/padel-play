@@ -42,6 +42,10 @@ const past = computed(() => {
   const now = Date.now()
   return matches.value.filter((m) => Date.parse(m.endsAt) < now).reverse()
 })
+
+function onMatchDeleted(id: number) {
+  matches.value = matches.value.filter((m) => m.id !== id)
+}
 </script>
 
 <template>
@@ -84,7 +88,7 @@ const past = computed(() => {
           <span v-if="upcoming.length > 0" class="font-normal normal-case">· {{ upcoming.length }}</span>
         </h2>
         <div v-if="upcoming.length > 0" class="space-y-4">
-          <MatchCard v-for="m in upcoming" :key="m.id" :match="m" />
+          <MatchCard v-for="m in upcoming" :key="m.id" :match="m" @deleted="onMatchDeleted" />
         </div>
         <div
           v-else
@@ -100,7 +104,7 @@ const past = computed(() => {
           Past · {{ past.length }}
         </h2>
         <div class="space-y-4 opacity-80">
-          <MatchCard v-for="m in past" :key="m.id" :match="m" />
+          <MatchCard v-for="m in past" :key="m.id" :match="m" @deleted="onMatchDeleted" />
         </div>
       </section>
     </template>
