@@ -1,4 +1,5 @@
 import { getTursoClient, json, errorJson, type TursoEnv } from './turso'
+import { ServiceError } from './errors'
 import type { Client } from '@libsql/client/web'
 import { getDb, type Db } from './drizzle'
 
@@ -53,7 +54,10 @@ export abstract class RestEndpoint<E = CloudflareEnv> {
 
   // --- Helpers ---
 
-  protected json = json
+  /** Typed JSON responder — always pass the `shared/<service>/types.ts` response interface, e.g. `this.json<ListUsersResponse>(...)`. */
+  protected json<T>(data: T, init?: ResponseInit): Response {
+    return json(data, init)
+  }
   protected error = errorJson
 
   protected client(ctx: RestContext<E>): Client {
@@ -138,6 +142,7 @@ export abstract class RestEndpoint<E = CloudflareEnv> {
     try {
       return await handler.call(this, ctx)
     } catch (e) {
+      if (e instanceof ServiceError) return this.error(e.message, e.status, e.details)
       const msg = e instanceof Error ? e.message : String(e)
       // Don't leak sensitive details, but surface Turso misconfig
       if (msg.includes('TURSO_DATABASE_URL')) return this.error('Turso not configured', 503, msg)

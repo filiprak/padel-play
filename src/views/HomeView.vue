@@ -2,12 +2,8 @@
 import { ref, onMounted, computed } from 'vue'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faRotate, faSpinner, faHeartPulse, faTriangleExclamation, faCode, faCheckCircle } from '@fortawesome/free-solid-svg-icons'
-
-interface HealthResponse {
-  status: string
-  uptime: number
-  version: string
-}
+import { getHealth, ApiError } from '@/services'
+import type { HealthResponse } from '@shared'
 
 const health = ref<HealthResponse | null>(null)
 const loading = ref(false)
@@ -18,12 +14,10 @@ async function fetchHealth() {
   loading.value = true
   error.value = null
   try {
-    const res = await fetch('/api/health')
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    health.value = (await res.json()) as HealthResponse
+    health.value = await getHealth()
     lastFetched.value = new Date()
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Unknown error'
+    error.value = e instanceof ApiError ? `${e.message} (HTTP ${e.status})` : e instanceof Error ? e.message : 'Unknown error'
   } finally {
     loading.value = false
   }

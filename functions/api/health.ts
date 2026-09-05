@@ -1,15 +1,16 @@
+import { getHealthStatus } from '../services/health/service'
+import type { HealthResponse } from '../../shared/health/types'
+
+/**
+ * Thin route adapter for `/api/health`.
+ * Logic lives in `functions/services/health/service.ts`.
+ */
 export const onRequestGet: PagesFunction = async () => {
-  return Response.json(
-    {
-      status: 'ok',
-      uptime: Date.now(),
-      version: '1.0.0',
+  const body: HealthResponse = getHealthStatus()
+  return Response.json(body, {
+    headers: {
+      'Cache-Control': 'no-store',
+      'Content-Type': 'application/json',
     },
-    {
-      headers: {
-        'Cache-Control': 'no-store',
-        'Content-Type': 'application/json',
-      },
-    },
-  )
+  })
 }

@@ -1,11 +1,5 @@
-export async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
-    headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) },
-    ...init,
-  })
-  const data = (await res.json().catch(() => ({}))) as T & { error?: string }
-  if (!res.ok) {
-    throw new Error((data as { error?: string }).error || `HTTP ${res.status}`)
-  }
-  return data
-}
+/**
+ * @deprecated Import from `@/services` instead.
+ * Kept for backwards compatibility — re-exports the service registry.
+ */
+export * from '../services'

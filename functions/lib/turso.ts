@@ -30,8 +30,11 @@ export function getTursoClient(env: TursoEnv): Client {
 /**
  * Helper to return JSON with proper headers. Also closes the client if needed.
  * libsql/web client is stateless (HTTP), no explicit close required, but we keep helper for future.
+ *
+ * Generic over `T` so endpoints return the exact interface from `shared/<service>/types.ts`,
+ * e.g. `json<ListUsersResponse>({ users, ... })`.
  */
-export function json(data: unknown, init: ResponseInit = {}): Response {
+export function json<T>(data: T, init: ResponseInit = {}): Response {
   return Response.json(data, {
     ...init,
     headers: {

@@ -18,9 +18,11 @@
     "noUncheckedIndexedAccess": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@shared": ["shared/index.ts"],
+      "@shared/*": ["shared/*"]
     },
     "types": ["vite/client", "@cloudflare/workers-types"]
   },
-  "include": ["src/**/*", "env.d.ts", "functions/**/*", "db/**/*"]
+  "include": ["src/**/*", "env.d.ts", "functions/**/*", "db/**/*", "shared/**/*"]
 }
