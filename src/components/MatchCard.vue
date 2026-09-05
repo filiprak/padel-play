@@ -1,37 +1,14 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { faClock, faLocationDot, faUserPlus, faPen, faTrash, faXmark, faSpinner } from '@fortawesome/free-solid-svg-icons'
+import { faClock, faLocationDot, faUserPlus, faPen } from '@fortawesome/free-solid-svg-icons'
 import { formatMatchDate, formatTimeRange, relativeDayLabel } from '@/lib/dates'
-import { deleteMatch, ApiError } from '@/services'
 import type { MatchDto, MatchTeam } from '@shared'
 
 const props = defineProps<{
   match: MatchDto
 }>()
-
-const emit = defineEmits<{
-  deleted: [id: number]
-}>()
-
-const confirmingDelete = ref(false)
-const deleting = ref(false)
-const deleteError = ref<string | null>(null)
-
-async function onDelete() {
-  deleting.value = true
-  deleteError.value = null
-  try {
-    await deleteMatch(props.match.id)
-    emit('deleted', props.match.id)
-  } catch (e) {
-    deleteError.value = e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Unknown error'
-    confirmingDelete.value = false
-  } finally {
-    deleting.value = false
-  }
-}
 
 interface Slot {
   key: string
@@ -76,46 +53,15 @@ const relativeLabel = computed(() => relativeDayLabel(props.match.startsAt, prop
         >
           {{ relativeLabel }}
         </span>
-        <template v-if="!confirmingDelete">
-          <RouterLink
-            :to="{ name: 'match-edit', params: { id: match.id } }"
-            aria-label="Edit match"
-            class="inline-flex items-center justify-center w-7 h-7 rounded-full text-gray-400 dark:text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
-          >
-            <FontAwesomeIcon :icon="faPen" class="text-xs" />
-          </RouterLink>
-          <button
-            type="button"
-            @click="confirmingDelete = true"
-            aria-label="Delete match"
-            class="inline-flex items-center justify-center w-7 h-7 rounded-full text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
-          >
-            <FontAwesomeIcon :icon="faTrash" class="text-xs" />
-          </button>
-        </template>
-        <template v-else>
-          <button
-            type="button"
-            @click="onDelete"
-            :disabled="deleting"
-            class="inline-flex items-center gap-1 rounded-full bg-red-600 text-white px-2.5 py-1 text-[11px] font-semibold hover:bg-red-700 disabled:opacity-50 transition"
-          >
-            <FontAwesomeIcon :icon="deleting ? faSpinner : faTrash" :spin="deleting" class="text-[10px]" />
-            {{ deleting ? 'Deleting…' : 'Confirm' }}
-          </button>
-          <button
-            type="button"
-            @click="confirmingDelete = false"
-            :disabled="deleting"
-            aria-label="Cancel delete"
-            class="inline-flex items-center justify-center w-7 h-7 rounded-full text-gray-400 dark:text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 transition disabled:opacity-50"
-          >
-            <FontAwesomeIcon :icon="faXmark" class="text-xs" />
-          </button>
-        </template>
+        <RouterLink
+          :to="{ name: 'match-edit', params: { id: match.id } }"
+          aria-label="Edit match"
+          class="inline-flex items-center justify-center w-7 h-7 rounded-full text-gray-400 dark:text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+        >
+          <FontAwesomeIcon :icon="faPen" class="text-xs" />
+        </RouterLink>
       </div>
     </div>
-    <p v-if="deleteError" class="px-5 pt-2 text-xs text-red-600 dark:text-red-400">{{ deleteError }}</p>
 
     <div class="px-5 mt-2 flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
       <FontAwesomeIcon :icon="faLocationDot" class="text-[11px]" />

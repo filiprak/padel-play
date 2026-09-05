@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faArrowLeft, faSpinner, faTriangleExclamation, faTrash } from '@fortawesome/free-solid-svg-icons'
+import ConfirmModal from '@/components/ConfirmModal.vue'
 import {
   listPlaces,
   createPlace,
@@ -58,7 +59,7 @@ const submitting = ref(false)
 const submitError = ref<string | null>(null)
 const formError = ref<string | null>(null)
 
-const confirmingDelete = ref(false)
+const showDeleteModal = ref(false)
 const deleting = ref(false)
 const deleteError = ref<string | null>(null)
 
@@ -199,7 +200,7 @@ async function onDelete() {
     await router.push({ name: 'home' })
   } catch (e) {
     deleteError.value = e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Unknown error'
-    confirmingDelete.value = false
+    showDeleteModal.value = false
   } finally {
     deleting.value = false
   }
@@ -364,41 +365,27 @@ const inputClass =
 
       <!-- Delete (edit mode only) -->
       <div v-if="isEdit" class="pt-2 border-t border-gray-200 dark:border-gray-800">
-        <template v-if="!confirmingDelete">
-          <button
-            type="button"
-            @click="confirmingDelete = true"
-            :disabled="submitting || loadingOptions"
-            class="inline-flex items-center gap-1.5 text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 disabled:opacity-50 transition"
-          >
-            <FontAwesomeIcon :icon="faTrash" class="text-xs" />
-            Delete match
-          </button>
-        </template>
-        <template v-else>
-          <p class="text-sm font-medium">Delete this match?</p>
-          <div class="mt-2 flex items-center gap-2">
-            <button
-              type="button"
-              @click="onDelete"
-              :disabled="deleting"
-              class="inline-flex items-center gap-1.5 rounded-full bg-red-600 text-white px-4 py-2 text-sm font-medium hover:bg-red-700 disabled:opacity-50 transition"
-            >
-              <FontAwesomeIcon v-if="deleting" :icon="faSpinner" spin />
-              {{ deleting ? 'Deleting…' : 'Yes, delete' }}
-            </button>
-            <button
-              type="button"
-              @click="confirmingDelete = false"
-              :disabled="deleting"
-              class="rounded-full border border-gray-300 dark:border-gray-700 px-4 py-2 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 transition"
-            >
-              Cancel
-            </button>
-          </div>
-          <p v-if="deleteError" class="mt-2 text-sm text-red-600 dark:text-red-400">{{ deleteError }}</p>
-        </template>
+        <button
+          type="button"
+          @click="showDeleteModal = true"
+          :disabled="submitting || loadingOptions"
+          class="inline-flex items-center gap-1.5 text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 disabled:opacity-50 transition"
+        >
+          <FontAwesomeIcon :icon="faTrash" class="text-xs" />
+          Delete match
+        </button>
+        <p v-if="deleteError" class="mt-2 text-sm text-red-600 dark:text-red-400">{{ deleteError }}</p>
       </div>
     </form>
+
+    <ConfirmModal
+      :open="showDeleteModal"
+      title="Delete match?"
+      message="This will permanently remove the match and its player assignments."
+      confirm-label="Yes, delete"
+      :loading="deleting"
+      @confirm="onDelete"
+      @cancel="showDeleteModal = false"
+    />
   </div>
 </template>
