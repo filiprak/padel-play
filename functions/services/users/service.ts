@@ -33,11 +33,38 @@ function assertValidRole(role: unknown): asserts role is UserRole {
 }
 
 function toConflictOrRethrow(e: unknown): never {
-  const msg = e instanceof Error ? e.message : String(e)
-  if (msg.includes('UNIQUE') || msg.toLowerCase().includes('unique')) {
-    throw ServiceError.conflict('email already exists', msg)
+  if (isUniqueViolation(e)) {
+    throw ServiceError.conflict('email already exists', errorText(e))
   }
   throw e
+}
+
+/**
+ * Drizzle wraps driver errors (`Failed query: ...`, original in `cause`;
+ * libsql exposes `code: 'SQLITE_CONSTRAINT_UNIQUE'`), so walk the whole
+ * chain instead of only checking the top-level message.
+ */
+function errorText(e: unknown): string {
+  const parts: string[] = []
+  const seen = new Set<unknown>()
+  let cur: unknown = e
+  while (cur !== null && cur !== undefined && !seen.has(cur)) {
+    seen.add(cur)
+    if (typeof cur === 'string') {
+      parts.push(cur)
+      break
+    }
+    if (typeof cur !== 'object') break
+    const rec = cur as Record<string, unknown>
+    if (typeof rec.message === 'string') parts.push(rec.message)
+    if (typeof rec.code === 'string') parts.push(rec.code)
+    cur = rec.cause
+  }
+  return parts.join(' | ')
+}
+
+function isUniqueViolation(e: unknown): boolean {
+  return errorText(e).toLowerCase().includes('unique')
 }
 
 export async function listUsers(db: Db, query: ListUsersQuery): Promise<ListUsersResponse> {
