@@ -5,11 +5,11 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "vite",
+    "vite:dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "type-check": "vue-tsc --noEmit",
-    "pages:dev": "wrangler pages dev dist --compatibility-date=2024-12-01",
+    "dev": "wrangler pages dev dist --compatibility-date=2024-12-01",
     "deploy": "pnpm build && wrangler pages deploy dist",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts --include-runtime false",
     "db:init": "tsx scripts/init-db.ts",
