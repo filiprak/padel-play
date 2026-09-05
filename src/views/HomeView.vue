@@ -51,7 +51,7 @@ function onMatchDeleted(id: number) {
 <template>
   <div class="mx-auto max-w-xl pb-24">
     <div class="text-center mb-8">
-      <h1 class="text-3xl sm:text-4xl font-bold tracking-tight">Padel Play</h1>
+      <h1 class="text-3xl sm:text-4xl font-bold tracking-tight">Matches</h1>
       <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">Find a match, join the court</p>
     </div>
 
