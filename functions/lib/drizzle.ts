@@ -16,4 +16,11 @@ export function getDb(env: TursoEnv) {
 }
 
 export type Db = ReturnType<typeof getDb>
+
+/**
+ * Minimal query surface used by services. Accepts both `Db` and the
+ * transaction handle passed to `db.transaction(...)`, so multi-write
+ * service operations can run atomically.
+ */
+export type QueryDb = Pick<Db, 'select' | 'insert' | 'update' | 'delete'>
 export { schema }

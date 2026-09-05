@@ -23,10 +23,15 @@ async function main() {
 
   console.log(`Connecting to ${url.split('?')[0]} ...`)
   // libsql client doesn't support multi-statement exec in one call reliably, split by ;
-  const statements = sql
+  // (`--` comment lines are stripped first so they can't swallow a statement.)
+  const withoutComments = sql
+    .split('\n')
+    .filter((line) => !line.trim().startsWith('--'))
+    .join('\n')
+  const statements = withoutComments
     .split(';')
     .map((s) => s.trim())
-    .filter((s) => s.length > 0 && !s.startsWith('--'))
+    .filter((s) => s.length > 0)
 
   for (const stmt of statements) {
     console.log(`> ${stmt.slice(0, 80)}...`)

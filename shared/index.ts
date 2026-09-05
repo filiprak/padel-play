@@ -15,6 +15,8 @@
 export * from './common'
 export * from './health/types'
 export * from './users/types'
+export * from './places/types'
+export * from './matches/types'
 
 import type { HealthResponse } from './health/types'
 import type {
@@ -28,6 +30,28 @@ import type {
   UpdateUserResponse,
   UserIdParams,
 } from './users/types'
+import type {
+  CreatePlaceInput,
+  CreatePlaceResponse,
+  DeletePlaceResponse,
+  GetPlaceResponse,
+  ListPlacesQuery,
+  ListPlacesResponse,
+  PlaceIdParams,
+  UpdatePlaceInput,
+  UpdatePlaceResponse,
+} from './places/types'
+import type {
+  CreateMatchInput,
+  CreateMatchResponse,
+  DeleteMatchResponse,
+  GetMatchResponse,
+  ListMatchesQuery,
+  ListMatchesResponse,
+  MatchIdParams,
+  UpdateMatchInput,
+  UpdateMatchResponse,
+} from './matches/types'
 
 /**
  * Route map — ties `METHOD path` to its I/O types.
@@ -76,6 +100,78 @@ export interface ApiRouteMap {
     query: Record<string, never>
     body: never
     response: DeleteUserResponse
+  }
+  'GET /api/places': {
+    params: Record<string, never>
+    query: ListPlacesQuery
+    body: never
+    response: ListPlacesResponse
+  }
+  'POST /api/places': {
+    params: Record<string, never>
+    query: Record<string, never>
+    body: CreatePlaceInput
+    response: CreatePlaceResponse
+  }
+  'GET /api/places/:id': {
+    params: PlaceIdParams
+    query: Record<string, never>
+    body: never
+    response: GetPlaceResponse
+  }
+  'PATCH /api/places/:id': {
+    params: PlaceIdParams
+    query: Record<string, never>
+    body: UpdatePlaceInput
+    response: UpdatePlaceResponse
+  }
+  'PUT /api/places/:id': {
+    params: PlaceIdParams
+    query: Record<string, never>
+    body: UpdatePlaceInput
+    response: UpdatePlaceResponse
+  }
+  'DELETE /api/places/:id': {
+    params: PlaceIdParams
+    query: Record<string, never>
+    body: never
+    response: DeletePlaceResponse
+  }
+  'GET /api/matches': {
+    params: Record<string, never>
+    query: ListMatchesQuery
+    body: never
+    response: ListMatchesResponse
+  }
+  'POST /api/matches': {
+    params: Record<string, never>
+    query: Record<string, never>
+    body: CreateMatchInput
+    response: CreateMatchResponse
+  }
+  'GET /api/matches/:id': {
+    params: MatchIdParams
+    query: Record<string, never>
+    body: never
+    response: GetMatchResponse
+  }
+  'PATCH /api/matches/:id': {
+    params: MatchIdParams
+    query: Record<string, never>
+    body: UpdateMatchInput
+    response: UpdateMatchResponse
+  }
+  'PUT /api/matches/:id': {
+    params: MatchIdParams
+    query: Record<string, never>
+    body: UpdateMatchInput
+    response: UpdateMatchResponse
+  }
+  'DELETE /api/matches/:id': {
+    params: MatchIdParams
+    query: Record<string, never>
+    body: never
+    response: DeleteMatchResponse
   }
 }
 

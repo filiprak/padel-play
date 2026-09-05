@@ -26,8 +26,8 @@ beforeEach(async () => {
   db = testDb.db
 })
 
-afterEach(() => {
-  testDb.close()
+afterEach(async () => {
+  await testDb.close()
 })
 
 async function seedAda(): Promise<number> {

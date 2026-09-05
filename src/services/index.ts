@@ -9,3 +9,5 @@
 export * from './http'
 export * from './health/api'
 export * from './users/api'
+export * from './places/api'
+export * from './matches/api'
