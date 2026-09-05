@@ -89,16 +89,35 @@ describe('createMatch', () => {
     )
   })
 
-  it('rejects squads that are not 2 vs 2', async () => {
+  it('accepts partial squads (open spots allowed)', async () => {
+    const fx = await seedFixture()
+    const [a, b] = fx.userIds
+    const base = validInput(fx)
+    const { match } = await createMatch(db, {
+      ...base,
+      players: [
+        { userId: a, team: 1 },
+        { userId: b, team: 2 },
+      ],
+    })
+    expect(match.players).toHaveLength(2)
+  })
+
+  it('rejects squads that break the 2v2 shape', async () => {
     const fx = await seedFixture()
     const [a, b, c, d] = fx.userIds
     const base = validInput(fx)
 
-    // only 3 players
+    // no players at all
+    await expectServiceError(createMatch(db, { ...base, players: [] }), 400, '1 to 4 players')
+    // 5 players
     await expectServiceError(
-      createMatch(db, { ...base, players: base.players.slice(0, 3) }),
+      createMatch(db, {
+        ...base,
+        players: [...base.players, { userId: a, team: 2 }],
+      }),
       400,
-      'exactly 4 players',
+      '1 to 4 players',
     )
     // 3 vs 1
     await expectServiceError(
@@ -112,7 +131,7 @@ describe('createMatch', () => {
         ],
       }),
       400,
-      'exactly 2 players',
+      'at most 2 players',
     )
     // same user twice (both teams covered, distinct violated)
     await expectServiceError(

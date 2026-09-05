@@ -2,7 +2,8 @@
  * shared/matches/types.ts — contract for the `matches` service.
  * Owner: matches service.
  *
- * Every match is 2 vs 2: exactly four assigned users, two per team.
+ * Every match is 2 vs 2: two teams with up to two players each.
+ * Unfilled slots are open spots (`players` holds only assigned users).
  * The venue comes from the separate `places` service and is embedded
  * in responses as a `PlaceDto`.
  */
@@ -24,7 +25,7 @@ export interface MatchDto {
   createdAt: string
   updatedAt: string
   place: PlaceDto
-  /** Always 4 entries: two with `team: 1`, two with `team: 2`. */
+  /** Assigned players only (1-4 entries); missing slots are open spots. */
   players: MatchPlayerDto[]
 }
 
@@ -55,7 +56,7 @@ export interface CreateMatchInput {
   startsAt: string
   /** ISO-8601 datetime string. Must be after `startsAt`. */
   endsAt: string
-  /** Exactly 4 entries: two per team, four distinct users. */
+  /** 1-4 entries: at most two per team, distinct users. */
   players: MatchPlayerInput[]
 }
 

@@ -4,7 +4,7 @@
  * `functions/api/matches.ts`, `functions/api/matches/[id].ts`.
  *
  * Rules enforced here:
- * - every match is 2 vs 2: exactly 4 distinct users, two per team;
+ * - 2v2 shape: 1-4 distinct users, at most 2 per team (open spots allowed);
  * - `startsAt` is a valid datetime before `endsAt`;
  * - the venue must exist (delegated to the separate `places` service).
  *
@@ -208,22 +208,26 @@ function assertTimeOrder(startsAt: string, endsAt: string): void {
   }
 }
 
-/** Enforces 2v2: exactly 4 distinct existing users, two per team. */
+/**
+ * Enforces the 2v2 shape with room for open spots: 1-4 distinct existing
+ * users, at most 2 per team. Unfilled slots are rendered as empty spots
+ * on the frontend.
+ */
 async function assertValidSquad(db: QueryDb, players: MatchPlayerInput[] | undefined): Promise<void> {
-  if (!Array.isArray(players) || players.length !== 4) {
-    throw ServiceError.badRequest('a match needs exactly 4 players (2 vs 2)')
+  if (!Array.isArray(players) || players.length < 1 || players.length > 4) {
+    throw ServiceError.badRequest('a match needs 1 to 4 players (2 vs 2, empty spots allowed)')
   }
   for (const p of players) {
     if (p.team !== 1 && p.team !== 2) throw ServiceError.badRequest('each player team must be 1 or 2')
     if (!Number.isInteger(p.userId) || p.userId <= 0) throw ServiceError.badRequest('each player needs a valid userId')
   }
-  if (players.filter((p) => p.team === 1).length !== 2 || players.filter((p) => p.team === 2).length !== 2) {
-    throw ServiceError.badRequest('each team must have exactly 2 players')
+  if (players.filter((p) => p.team === 1).length > 2 || players.filter((p) => p.team === 2).length > 2) {
+    throw ServiceError.badRequest('each team can have at most 2 players')
   }
   const ids = players.map((p) => p.userId)
-  if (new Set(ids).size !== 4) throw ServiceError.badRequest('players must be four distinct users')
+  if (new Set(ids).size !== ids.length) throw ServiceError.badRequest('players must be distinct users')
   const rows = await db.select({ id: users.id }).from(users).where(inArray(users.id, ids))
-  if (rows.length !== 4) {
+  if (rows.length !== ids.length) {
     const found = new Set(rows.map((r) => r.id))
     const missing = ids.filter((id) => !found.has(id))
     throw ServiceError.notFound(`User(s) not found: ${missing.join(', ')}`)
