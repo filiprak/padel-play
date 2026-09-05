@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faClock, faLocationDot, faUserPlus } from '@fortawesome/free-solid-svg-icons'
+import { formatMatchDate, formatTimeRange, relativeDayLabel } from '@/lib/dates'
 import type { MatchDto, MatchTeam } from '@shared'
 
 const props = defineProps<{
@@ -25,38 +26,11 @@ function slotsFor(team: MatchTeam): Slot[] {
 const team1 = computed(() => slotsFor(1))
 const team2 = computed(() => slotsFor(2))
 
-const start = computed(() => new Date(props.match.startsAt))
-const end = computed(() => new Date(props.match.endsAt))
+const dayLabel = computed(() => formatMatchDate(props.match.startsAt))
 
-const dayLabel = computed(() => {
-  try {
-    return new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric', month: 'short' }).format(start.value)
-  } catch {
-    return props.match.startsAt
-  }
-})
+const timeRange = computed(() => formatTimeRange(props.match.startsAt, props.match.endsAt))
 
-const timeRange = computed(() => {
-  try {
-    const fmt = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' })
-    return `${fmt.format(start.value)} – ${fmt.format(end.value)}`
-  } catch {
-    return ''
-  }
-})
-
-const relativeLabel = computed(() => {
-  const now = new Date()
-  const msPerDay = 24 * 60 * 60 * 1000
-  const startDay = new Date(start.value.getFullYear(), start.value.getMonth(), start.value.getDate()).getTime()
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
-  const diff = Math.round((startDay - today) / msPerDay)
-  if (end.value < now) return null
-  if (diff <= 0) return 'Today'
-  if (diff === 1) return 'Tomorrow'
-  if (diff < 7) return `In ${diff} days`
-  return null
-})
+const relativeLabel = computed(() => relativeDayLabel(props.match.startsAt, props.match.endsAt))
 </script>
 
 <template>
