@@ -3,6 +3,7 @@ import { RouterView } from 'vue-router'
 import { ref, onMounted, watch } from 'vue'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faSun, faMoon } from '@fortawesome/free-solid-svg-icons'
+import Logo from './components/Logo.vue'
 
 const isDark = ref(false)
 
@@ -44,7 +45,7 @@ watch(isDark, (v) => applyDark(v))
     <header class="sticky top-0 z-10 border-b border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-950/80 backdrop-blur">
       <div class="max-w-3xl mx-auto w-full px-6 py-3 flex items-center justify-between">
         <div class="flex items-center gap-2.5">
-          <img src="/favicon.svg" alt="Padel Play logo" class="w-7 h-7 shrink-0" />
+          <Logo class="w-7 h-7 shrink-0" />
           <span class="font-semibold text-[17px] tracking-tight">Padel Play</span>
         </div>
         <button
